@@ -1,0 +1,118 @@
+// This is your Prisma schema file
+// Hyperlocal IT Career Matchmaker - Final Version
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum LocationPreference {
+  ALL
+  BANDUNG
+  REMOTE
+}
+
+model User {
+  id        String   @id @default(uuid())
+  username  String
+  email     String   @unique
+  password  String
+  
+  skills    String[]  
+  
+  locationPreference LocationPreference @default(ALL)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  jobs      Job[]
+  analyses  Analysis[]
+
+  @@map("users")
+}
+
+model Job {
+  id          String   @id @default(uuid())
+  title       String?
+  company     String?
+  description String?   
+  url         String   @unique
+  location    String?
+  isRemote    Boolean  @default(false) @map("is_remote")
+  city        String?
+  source      String   @default("glints")
+  skills      String[]
+  
+  scrapedAt   DateTime @default(now()) @map("scraped_at")
+  
+  userId      String   @map("user_id")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  analyses    Analysis[]
+
+  @@index([isRemote, city])
+  @@map("jobs")
+}
+
+model Analysis {
+  id        String   @id @default(uuid())
+  
+  matchScore      Int      
+  matchedSkills   String[] 
+  missingSkills   String[] 
+  
+  aiNarrative     String   
+  learningRoadmap String[] 
+  proTip          String?  
+  
+  jobId      String @map("job_id")
+  job        Job    @relation(fields: [jobId], references: [id])
+  
+  userId     String @map("user_id")
+  user       User   @relation(fields: [userId], references: [id])
+  
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, jobId])
+  @@index([matchScore])
+  @@map("analyses")
+}
+
+
+model MarketInsight {
+  id          String   @id @default(uuid())
+  
+  insightType String   @map("insight_type")  
+  data        Json                         
+  
+  periodStart DateTime @map("period_start")
+  periodEnd   DateTime @map("period_end")
+  
+  createdAt   DateTime @default(now())
+
+  @@unique([insightType, periodStart, periodEnd])
+  @@map("market_insights")
+}
+
+model ScrapingLog {
+  id              String   @id @default(uuid())
+  status          String   
+  source          String   @default("glints")
+  
+  totalFound      Int      @default(0)
+  totalInserted   Int      @default(0)
+  totalDuplicated Int      @default(0)
+  totalSkipped    Int      @default(0)  
+  
+  errorMessage    String?  
+  
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+
+  @@index([status, startedAt])
+  @@map("scraping_logs")
+}
