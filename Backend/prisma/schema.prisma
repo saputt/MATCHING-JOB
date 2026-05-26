@@ -46,12 +46,9 @@ model Job {
   city        String?
   source      String   @default("glints")
   skills      String[]
-  
   scrapedAt   DateTime @default(now()) @map("scraped_at")
-  
   userId      String   @map("user_id")
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   analyses    Analysis[]
 
   @@index([isRemote, city])
@@ -61,13 +58,13 @@ model Job {
 model Analysis {
   id        String   @id @default(uuid())
   
-  matchScore      Int      
-  matchedSkills   String[] 
-  missingSkills   String[] 
+  matchScore      Int      @map("match_score")
+  matchedSkills   String[] @map("matched_skills")
+  missingSkills   String[] @map("missing_skills")
   
-  aiNarrative     String   
-  learningRoadmap String[] 
-  proTip          String?  
+  aiNarrative     String   @map("ai_narrative")
+  learningRoadmap String[] @map("learning_roadmap")
+  proTip          String?  @map("protip")
   
   jobId      String @map("job_id")
   job        Job    @relation(fields: [jobId], references: [id])
@@ -75,13 +72,12 @@ model Analysis {
   userId     String @map("user_id")
   user       User   @relation(fields: [userId], references: [id])
   
-  createdAt  DateTime @default(now())
+  createdAt  DateTime @default(now()) @map("created_at")
 
   @@unique([userId, jobId])
   @@index([matchScore])
   @@map("analyses")
 }
-
 
 model MarketInsight {
   id          String   @id @default(uuid())

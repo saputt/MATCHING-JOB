@@ -1,0 +1,11 @@
+# FastAPI Web Core
+fastapi==0.115.12
+uvicorn[standard]==0.34.0
+pydantic
+
+# Database & ORM (Modern & Async Support)
+sqlalchemy==2.0.38
+psycopg[binary]==3.3.4
+
+# Environment Variable Manager
+python-dotenv==1.0.1
