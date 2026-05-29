@@ -5,7 +5,6 @@ from app.models.job import Job
 
 # data yang dikirim ke python untuk menganalisis market
 class AnalyzeMarketRequest(BaseModel):
-    user_id: str
     skills: List[str] 
 
 # ini respon dari top_skill pada market insight response

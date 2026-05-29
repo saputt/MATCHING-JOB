@@ -2,6 +2,7 @@ from typing import List, Dict
 from collections import Counter
 from app.features.market.repository import MarketRepository
 from app.features.market.schema import CalculateScoreGapResult, MarketMatchSkill, TopJobResult, MarketInsightResponse, SkillGapSchema, JobWithScoreSchema
+from app.models.job import Job
 
 class MarketService:
     def __init__(self, repo: MarketRepository):
@@ -9,12 +10,13 @@ class MarketService:
     
     # method ini adalah method utama, yang akan dipanggil di router
     def analyze_market(self, user_skills: List[str], limit : int = 5) -> MarketInsightResponse:
+        jobs = self.repo.get_all_jobs()
         # memanggil internal method untuk menganalisis market fit sesuai dengan skill pengguna
-        market_fit_analysis = self.analyze_skill_gap_with_market(user_skills)
+        market_fit_analysis = self.analyze_skill_gap_with_market(user_skills, jobs=jobs)
         # memanggil internal method untuk mengambil top job berdasarkan skill pengguna
-        top_jobs_recommendation = self.get_top_jobs(user_skills)
+        top_jobs_recommendation = self.get_top_jobs(user_skills, jobs=jobs)
         # memanggil internal method untuk mengambil top skills yang ada di market
-        top_skills_in_market = self.get_top_skills()
+        top_skills_in_market = self.get_top_skills(jobs=jobs)
 
         # membuat inisialisasi untuk memasukkan job dengan schema yang sudah ditentukan
         job_with_schema = []
@@ -50,10 +52,7 @@ class MarketService:
         )
 
     # method ini berfungsi untuk mendapatkan top skills yang sering muncul di market
-    def get_top_skills(self, limit : int = 5) -> List[Dict[str, int]]:
-        # melakukan query ke tabel jobs melalui repository
-        jobs = self.repo.get_all_jobs()
-
+    def get_top_skills(self, jobs : List[Job], limit : int = 5) -> List[Dict[str, int]]:
         # jika tidak ada jobs sama sekali di database, kembalikan array kosong
         if not jobs:
             return []
@@ -112,9 +111,9 @@ class MarketService:
         )
     
     # fungsi ini untuk menganalisis seberapa cocok skill user dengan trend pasar
-    def analyze_skill_gap_with_market(self, user_skills: List[str]) -> MarketMatchSkill:
+    def analyze_skill_gap_with_market(self, user_skills: List[str], jobs: List[Job]) -> MarketMatchSkill:
         # mengambil skill yang paling sering muncul
-        top_skills = self.get_top_skills(limit=5)
+        top_skills = self.get_top_skills(limit=5, jobs=jobs)
 
         # jika top skills kosong kembalikan nilai inis
         if not top_skills:
@@ -137,10 +136,7 @@ class MarketService:
         )
     
     # method ini berfungsi untuk mengambil top job teratas yang sesuai dengan skill user
-    def get_top_jobs(self, user_skills: List[str], limit: int = 10) -> List[TopJobResult]:
-        # mengambil semua jobs
-        jobs = self.repo.get_all_jobs()
-
+    def get_top_jobs(self, user_skills: List[str], jobs : List[Job], limit: int = 10) -> List[TopJobResult]:
         result = []
 
         # melakukan perulangan ke semua jobs

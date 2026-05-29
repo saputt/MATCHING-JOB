@@ -40,11 +40,11 @@ class JobWithScoreSchema(BaseModel):
 
 # ini respon yang diberikan ke FE, terkait hasil analisis market insight
 class MarketInsightResponse(BaseModel):
-    top_skills: List[SkillFrequency]
+    top_skills: List[SkillFrequencySchema]
     skills_gap: SkillGap
     market_match_score: int
     market_narrative: str
-    top_jobs: List[JobWithScore]
+    top_jobs: List[JobWithScoreSchema]
 
 # ini respom yang diberikan ke fe, terkait hasil analisis job
 class JobAnalysisResponse(BaseModel):
