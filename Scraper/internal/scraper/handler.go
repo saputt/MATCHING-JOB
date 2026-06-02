@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"job-matching-scraper/internal/httpx"
+	"job-matching-scraper/internal/model"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -26,7 +27,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 }
 
 func (h *Handler) Scrape(w http.ResponseWriter, r *http.Request) {
-	var req ScraperRequest
+	var req model.ScrapeRequest
 
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
@@ -34,7 +35,7 @@ func (h *Handler) Scrape(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.UserId == "" {
+	if req.UserID == "" {
 		httpx.WriteError(w, http.StatusBadRequest, "userid is empty")
 		return
 	}
@@ -44,7 +45,7 @@ func (h *Handler) Scrape(w http.ResponseWriter, r *http.Request) {
 		targetPerKeyword = 30
 	}
 
-	response, err := h.service.ScrapeAndSave(r.Context(), req.UserId, targetPerKeyword)
+	response, err := h.service.ScrapeAndSave(r.Context(), req.UserID, targetPerKeyword)
 	fmt.Println(err)
 	if err != nil {
 		httpx.WriteError(w, http.StatusInternalServerError, "internal server error")

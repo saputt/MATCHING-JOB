@@ -21,7 +21,7 @@ class Analysis(Base):
     user_id = Column(UUID(as_uuid=True), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
-    #
+    # untuk melakukan indexing
     __table_args__ = (
         Index("idx_analysis_user_job", user_id, job_id, unique=True),
     )

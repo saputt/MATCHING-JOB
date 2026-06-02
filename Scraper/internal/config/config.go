@@ -34,6 +34,6 @@ func Load() *Config {
 	return &Config{
 		DatabaseUrl: getEnv("DATABASE_URL", ""),
 		AppPort:     getEnv("PORT", "8000"),
-		Headless:    getEnvBool("HEADLESS", true),
+		Headless:    getEnvBool("HEADLESS", false),
 	}
 }

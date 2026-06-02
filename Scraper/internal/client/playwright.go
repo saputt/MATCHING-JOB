@@ -1,8 +1,9 @@
-package scraper
+package client
 
 import (
 	"encoding/json"
 	"fmt"
+	"job-matching-scraper/internal/utils"
 	"os"
 
 	"github.com/playwright-community/playwright-go"
@@ -77,7 +78,7 @@ func (c *PlaywrightClient) NewPage() (playwright.Page, error) {
 	//membuat context baru dengan user agent yang berbeda
 	//context beriskan environtment seperti cookie, storage dll
 	context, err := c.browser.NewContext(playwright.BrowserNewContextOptions{
-		UserAgent:    playwright.String(GetRandomUserAgent()),
+		UserAgent:    playwright.String(utils.GetRandomUserAgent()),
 		StorageState: &storageStateObj,
 	})
 

@@ -1,4 +1,4 @@
-package scraper
+package utils
 
 import (
 	"math/rand"
@@ -51,7 +51,7 @@ func GetStealthArgs() []string {
 }
 
 // fungsi ini untuk mengecek apakah company, merupakan company yang mencurigakan dan melenceng dari IT
-func isSusCompany(company string) bool {
+func IsSusCompany(company string) bool {
 	lowerCompany := strings.ToLower(company)
 
 	suspicious := []string{
@@ -79,7 +79,7 @@ func GetRandomUserAgent() string {
 }
 
 // fungsi ini untuk mengecek, apakah kata kunci job yang didapat dari scrap merupakan job IT
-func isItJob(title string) bool {
+func IsItJob(title string) bool {
 	lowerTitle := strings.ToLower(title)
 
 	itKeyword := []string{
@@ -100,7 +100,7 @@ func isItJob(title string) bool {
 }
 
 // fungis ini untuk mengecek kemungkinan dari setiap role. misal hasil scraping bisa beragam, misal go, golang dll. fungsi ini untuk mengecek beberapa kemungkinan
-func normalizeSkill(skill string) string {
+func NormalizeSkill(skill string) string {
 	lowerSkill := strings.ToLower(strings.TrimSpace(skill))
 
 	synonyms := map[string][]string{
@@ -127,4 +127,21 @@ func normalizeSkill(skill string) string {
 	}
 
 	return lowerSkill
+}
+
+func ExtractCityFromAdress(address string) string {
+	addressLower := strings.ToLower(address)
+
+	cities := []string{
+		"bandung", "jakarta", "surabaya", "medan", "semarang",
+		"tangerang", "bekasi", "depok", "bogor", "yogyakarta",
+	}
+
+	for _, city := range cities {
+		if strings.Contains(addressLower, city) {
+			return city
+		}
+	}
+
+	return ""
 }

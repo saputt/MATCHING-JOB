@@ -15,7 +15,7 @@ type Job struct {
 	Location    string `gorm:"not null"`
 	IsRemote    bool   `gorm:"default:false"`
 	City        string
-	Source      string         `gorm:"default:glints"`
+	Source      string
 	Skills      pq.StringArray `gorm:"type:text[]"`
 	ScrapedAt   time.Time      `gorm:"autoCreateTime"`
 	UserId      string         `gorm:"column:user_id;type:uuid;not null"`

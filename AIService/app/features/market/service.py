@@ -10,7 +10,9 @@ class MarketService:
     
     # method ini adalah method utama, yang akan dipanggil di router
     def analyze_market(self, user_skills: List[str], limit : int = 5) -> MarketInsightResponse:
+        # melakukan query untuk mendapatkan seluruh jobs, yang nantinya dilempar ke fungsi lain
         jobs = self.repo.get_all_jobs()
+
         # memanggil internal method untuk menganalisis market fit sesuai dengan skill pengguna
         market_fit_analysis = self.analyze_skill_gap_with_market(user_skills, jobs=jobs)
         # memanggil internal method untuk mengambil top job berdasarkan skill pengguna

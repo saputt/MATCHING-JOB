@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"job-matching-scraper/internal/client"
 	"job-matching-scraper/internal/config"
 	"job-matching-scraper/internal/database"
 	"job-matching-scraper/internal/scraper"
@@ -19,7 +20,7 @@ func main() {
 	//melakukan cek apakah state.jso sudah ada, jika belum arahkan user untuk login dahulu
 	_, err := os.Stat("state.json")
 	if os.IsNotExist(err) {
-		err := scraper.LoginManual()
+		err := client.LoginManual()
 		if err != nil {
 			log.Fatal("login manual gagal")
 		}
