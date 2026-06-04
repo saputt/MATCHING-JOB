@@ -16,6 +16,10 @@ type JobDetail struct {
 	Skills      []string
 }
 
+type JobstreetDetail struct {
+	Description string
+}
+
 type ScrapeRequest struct {
 	UserID  string `json:"user_id"`
 	Keyword string `json:"keyword"`
@@ -28,4 +32,10 @@ type ScrapeResponse struct {
 	TotalInserted    int    `json:"total_inserted"`
 	TotalDuplicated  int    `json:"total_duplicated"`
 	ExecutionTimeSec int    `json:"execution_time_sec"`
+}
+
+type ProxyAuth struct {
+	Server string
+	User   string
+	Pass   string
 }

@@ -79,7 +79,7 @@ func (s *GlintsSource) Scrape(ctx context.Context, keywords []string, limit int)
 	var wg sync.WaitGroup
 
 	// melakukan looping sebanyak jumlah worker yang diinginkan, lalu mengerjakan scraping detail
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 5; i++ {
 		wg.Add(1)
 		go func(workerId int) {
 			defer wg.Done()
@@ -91,6 +91,9 @@ func (s *GlintsSource) Scrape(ctx context.Context, keywords []string, limit int)
 					return
 				default:
 				}
+
+				log.Printf("scraping detail jobstreet. title : %s", job.Title)
+
 				detail, err := s.scrapeDetail(job.Url)
 				if err != nil {
 					continue
@@ -170,6 +173,7 @@ func (s *GlintsSource) scrapeKeyword(
 	})
 
 	if err != nil {
+		log.Println("failed to load jobstreet page, block by cloudflare")
 		return nil, err
 	}
 
@@ -218,6 +222,7 @@ func (s *GlintsSource) scrapeKeyword(
 			count, _ := titleLocator.Count()
 			if count > 0 {
 				titleText, err := titleLocator.First().TextContent()
+				log.Printf("scraping glints. keyword : %s, title : %s ", keyword, titleText)
 				if err == nil {
 					raw.Title = strings.TrimSpace(titleText)
 				}
@@ -294,7 +299,6 @@ func (s *GlintsSource) scrapeKeyword(
 	}
 
 	utils.RandomDelay(3000, 6000)
-	log.Printf("🔵 Glints: Phase 1 done, got %d raw jobs", len(jobs))
 	return jobs, nil
 }
 
@@ -325,7 +329,18 @@ func (s *GlintsSource) scrapeDetail(
 		return nil, fmt.Errorf("failed to set route: %w", err)
 	}
 
-	_, err = page.Goto(url)
+	page.AddInitScript(playwright.Script{
+		Content: playwright.String(`
+        Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+        window.navigator.chrome = { runtime: {} };
+        Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+    `),
+	})
+
+	_, err = page.Goto(url, playwright.PageGotoOptions{
+		WaitUntil: playwright.WaitUntilStateNetworkidle,
+		Timeout:   playwright.Float(30000),
+	})
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to navigate: %w", err)
@@ -422,6 +437,8 @@ func (s *GlintsSource) scrapeDetail(
 			detail.Location = strings.TrimSpace(locationText)
 		}
 	}
+
+	utils.RandomDelay(1500, 2000)
 
 	return detail, nil
 }

@@ -137,7 +137,7 @@ func (s *Service) ScrapeAndSave(ctx context.Context, userId string, targetPerKey
 			IsRemote:    isRemote,
 			Url:         raw.Url,
 			City:        city,
-			Source:      "glints",
+			Source:      raw.Source,
 			Skills:      skills,
 			UserId:      userId,
 		}

@@ -1,7 +1,9 @@
 package utils
 
 import (
+	"job-matching-scraper/internal/model"
 	"math/rand"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -144,4 +146,42 @@ func ExtractCityFromAdress(address string) string {
 	}
 
 	return ""
+}
+
+func CleanJobstreetDesc(desc string) string {
+	if desc == "" {
+		return ""
+	}
+	desc = strings.ReplaceAll(desc, "</li>", "\n")
+	desc = strings.ReplaceAll(desc, "</p>", "\n")
+	desc = strings.ReplaceAll(desc, "<br>", "\n")
+	desc = strings.ReplaceAll(desc, "<br/>", "\n")
+
+	re := regexp.MustCompile(`<[^>]*>`)
+	cleaned := re.ReplaceAllString(desc, "")
+
+	cleaned = strings.ReplaceAll(cleaned, "&nbsp;", " ")
+
+	lines := strings.Split(cleaned, "\n")
+	var finalLines []string
+	for _, line := range lines {
+		trimed := strings.TrimSpace(line)
+		if trimed != "" {
+			finalLines = append(finalLines, trimed)
+		}
+	}
+
+	return strings.Join(finalLines, "\n")
+}
+
+func GetRandomProxy() model.ProxyAuth {
+	proxies := []model.ProxyAuth{
+		{Server: "http://191.96.254.138:6185", User: "kvvmyekk", Pass: "ojxengeknzkk"},
+		{Server: "http://31.58.9.4:6077", User: "kvvmyekk", Pass: "ojxengeknzkk"},
+		{Server: "http://104.239.107.47:5699", User: "kvvmyekk", Pass: "ojxengeknzkk"},
+		// Tambahkan semua proxy yang ada di dashboard Webshare kamu ke sini
+	}
+
+	rand.Seed(time.Now().UnixNano())
+	return proxies[rand.Intn(len(proxies))]
 }

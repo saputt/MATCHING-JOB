@@ -6,7 +6,9 @@ import (
 	"job-matching-scraper/internal/client"
 	"job-matching-scraper/internal/model"
 	"job-matching-scraper/internal/utils"
+	"log"
 	"strings"
+	"sync"
 
 	"github.com/playwright-community/playwright-go"
 )
@@ -29,7 +31,7 @@ func (s *JobstreetSouce) Scrape(ctx context.Context, keywords []string, limit in
 	result := make(chan []model.RawJob, len(keywords))
 	errors := make(chan error, len(keywords))
 
-	maxConcurent := 5
+	maxConcurent := 4
 	semaphore := make(chan struct{}, maxConcurent)
 
 	for _, keyword := range keywords {
@@ -44,20 +46,80 @@ func (s *JobstreetSouce) Scrape(ctx context.Context, keywords []string, limit in
 		}(keyword)
 	}
 
-	var allJobs []model.RawJob
+	var allRawJob []model.RawJob
 
 	for i := 0; i < len(keywords); i++ {
 		select {
 		case job := <-result:
-			allJobs = append(allJobs, job...)
+			allRawJob = append(allRawJob, job...)
 		case err := <-errors:
 			fmt.Printf("Glints error: %v\n", err)
 		case <-ctx.Done():
-			return allJobs, ctx.Err()
+			return allRawJob, ctx.Err()
 		}
 	}
 
-	return allJobs, nil
+	// membuat channel sebanyak panjang data yang berhasil di scraping sebelumnya
+	jobChan := make(chan model.RawJob, len(allRawJob))
+	resultChan := make(chan model.RawJob, len(allRawJob))
+	errorsChan := make(chan error, len(allRawJob))
+
+	// melakukan looping sebanyak data yang telah didapatkan lalu memasukkannya ke jobChan, yang akan digunakan sebagai antrian untuk goroutines
+	for _, job := range allRawJob {
+		jobChan <- job
+	}
+	close(jobChan)
+
+	var wg sync.WaitGroup
+
+	// melakukan looping sebanyak jumlah worker yang diinginkan, lalu mengerjakan scraping detail
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func(workerId int) {
+			defer wg.Done()
+
+			for job := range jobChan {
+				select {
+				case <-ctx.Done():
+					errorsChan <- ctx.Err()
+					return
+				default:
+				}
+
+				log.Printf("scraping detail jobstreet. title : %s", job.Title)
+
+				detail, err := s.scrapeDetail(job.Url)
+				if err != nil {
+					continue
+				}
+
+				job.Description = detail.Description
+
+				resultChan <- job
+
+				utils.RandomDelay(1500, 3000)
+			}
+
+		}(i)
+	}
+
+	go func() {
+		wg.Wait()
+		close(resultChan)
+		close(errorsChan)
+	}()
+
+	var completeJobs []model.RawJob
+
+	for job := range resultChan {
+		completeJobs = append(completeJobs, job)
+	}
+
+	for err := range errorsChan {
+		fmt.Printf("Detail scraping error: %v\n", err)
+	}
+
+	return completeJobs, nil
 }
 
 func (s *JobstreetSouce) scrapeKeyword(ctx context.Context, keyword string, limit int) ([]model.RawJob, error) {
@@ -82,7 +144,6 @@ func (s *JobstreetSouce) scrapeKeyword(ctx context.Context, keyword string, limi
 
 	_, err = page.Goto(url, playwright.PageGotoOptions{
 		WaitUntil: playwright.WaitUntilStateCommit,
-		Timeout:   playwright.Float(30000),
 	})
 
 	if err != nil {
@@ -97,6 +158,11 @@ func (s *JobstreetSouce) scrapeKeyword(ctx context.Context, keyword string, limi
 		Timeout: playwright.Float(30000),
 	})
 
+	if err != nil {
+		log.Println("failed to load jobstreet page, block by cloudflare")
+		return nil, err
+	}
+
 	for len(jobs) < limit && currentPage < maxPage {
 		select {
 		case <-ctx.Done():
@@ -104,7 +170,7 @@ func (s *JobstreetSouce) scrapeKeyword(ctx context.Context, keyword string, limi
 		default:
 		}
 
-		utils.RandomDelay(1500, 3000)
+		utils.RandomDelay(1000, 2000)
 
 		cards, err := cardLocator.All()
 		if err != nil {
@@ -124,6 +190,7 @@ func (s *JobstreetSouce) scrapeKeyword(ctx context.Context, keyword string, limi
 			count, _ := titleLoc.Count()
 			if count > 0 {
 				titleText, err := titleLoc.First().TextContent()
+				log.Println("jobstreet scrape. keyword : " + keyword + ", title : " + titleText)
 				if err == nil {
 					raw.Title = strings.TrimSpace(titleText)
 				}
@@ -155,15 +222,6 @@ func (s *JobstreetSouce) scrapeKeyword(ctx context.Context, keyword string, limi
 				}
 			}
 
-			descriptionLoc := card.Locator("div[data-automation='jobAdDetails'] div")
-			count, _ = descriptionLoc.Count()
-			if count > 0 {
-				descriptionText, err := descriptionLoc.InnerHTML()
-				if err == nil {
-					raw.Description = strings.TrimSpace(descriptionText)
-				}
-			}
-
 			linkLoc := card.Locator("a[data-automation='jobTitle']")
 			count, _ = linkLoc.Count()
 			if count > 0 {
@@ -190,6 +248,7 @@ func (s *JobstreetSouce) scrapeKeyword(ctx context.Context, keyword string, limi
 
 			jobs = append(jobs, raw)
 			newJobCount++
+
 		}
 
 		if newJobCount == 0 {
@@ -206,4 +265,81 @@ func (s *JobstreetSouce) scrapeKeyword(ctx context.Context, keyword string, limi
 
 	utils.RandomDelay(3000, 6000)
 	return jobs, nil
+}
+
+// fungsi ini merupakan tahapan kedua dari scraping yang berfungsi untuk melakukan scraping pada detail job yang sudah discraping pada tahap satu
+func (s *JobstreetSouce) scrapeDetail(
+	url string,
+) (*model.JobstreetDetail, error) {
+	//membuat page baru, setiap scraping detail memakai page baru
+	page, err := s.client.NewPage()
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create page: %w", err)
+	}
+	defer s.client.ClosePage(page)
+
+	//melakukan blokir terhadap resource yang tidak perlu
+	err = page.Route("**/*", func(route playwright.Route) {
+		resourceType := route.Request().ResourceType()
+
+		if resourceType == "image" || resourceType == "font" {
+			route.Abort()
+		} else {
+			route.Continue()
+		}
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to set route: %w", err)
+	}
+
+	page.AddInitScript(playwright.Script{
+		Content: playwright.String(`
+        Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+        window.navigator.chrome = { runtime: {} };
+        Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+    `),
+	})
+
+	_, err = page.Goto(url, playwright.PageGotoOptions{
+		WaitUntil: playwright.WaitUntilStateNetworkidle,
+		Timeout:   playwright.Float(30000),
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to navigate: %w", err)
+	}
+
+	err = page.WaitForLoadState(playwright.PageWaitForLoadStateOptions{
+		State: playwright.LoadStateDomcontentloaded,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("wait for load is failed: %w", err)
+	}
+
+	utils.RandomDelay(1000, 2000)
+
+	detail := &model.JobstreetDetail{}
+
+	descLocator := page.Locator("div[data-automation='jobAdDetails']")
+
+	err = descLocator.WaitFor(playwright.LocatorWaitForOptions{
+		State:   playwright.WaitForSelectorStateVisible,
+		Timeout: playwright.Float(5000),
+	})
+
+	if err == nil {
+		descContent, err := descLocator.InnerHTML()
+		if err == nil {
+			detail.Description = utils.CleanJobstreetDesc(descContent)
+		}
+	} else {
+		detail.Description = ""
+	}
+
+	utils.RandomDelay(1500, 2000)
+
+	return detail, nil
 }
