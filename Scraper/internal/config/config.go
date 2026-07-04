@@ -22,7 +22,7 @@ func getEnv(key string, fallback string) string {
 
 func getEnvBool(key string, defaultValue bool) bool {
 	value := os.Getenv(key)
-	if value == "" {
+	if value != "" {
 		return value == "true" || value == "1"
 	}
 	return defaultValue
@@ -34,6 +34,6 @@ func Load() *Config {
 	return &Config{
 		DatabaseUrl: getEnv("DATABASE_URL", ""),
 		AppPort:     getEnv("PORT", "8000"),
-		Headless:    getEnvBool("HEADLESS", true),
+		Headless:    getEnvBool("HEADLESS", false),
 	}
 }
