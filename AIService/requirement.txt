@@ -9,3 +9,6 @@ psycopg[binary]==3.3.4
 
 # Environment Variable Manager
 python-dotenv==1.0.1
+
+google-genai
+openai
