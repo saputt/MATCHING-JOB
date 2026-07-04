@@ -12,23 +12,27 @@ class Job(Base):
     __tablename__ = "jobs"
 
     # ini skema tabelnya
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid1)
-    user_id = Column(UUID(as_uuid=True), nullable=False)
+    id = Column(String, primary_key=True, default=uuid.uuid1)
     title = Column(String, nullable=False)
     company = Column(String, nullable=False)
     description = Column(Text, nullable=True)
-    url = Column(String, nullable=False, unique=True, index=True)
+    url = Column(String, nullable=False, index=True)
     location = Column(String, nullable=False)
-    is_remote = Column(Boolean, default=False)
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid1)
+    is_it = Column(Boolean, nullable=True)
+    is_active = Column(Boolean, default=True)
     city = Column(String, nullable=True)
     source = Column(String, default="glints")
+    salary = Column(String, nullable=False)
     skills = Column(ARRAY(String), default=[])
+    softskills = Column(ARRAY(String), default=[])
     scraped_at = Column(DateTime(timezone=True), server_default=func.now())
-    
+    joblevel = Column(String, nullable=True)
+    is_ok = Column(Boolean, default=False)
+    embedding = Column(String, nullable=True)
+
     #ini untuk indexing agar pencarian cepat
     __table_args__ = (
-        Index("idx_jobs_is_remote_city", is_remote, city),
+        Index("idx_job_title_remote", title, company, unique=True),
     )
 
     def __repr__ (self):
