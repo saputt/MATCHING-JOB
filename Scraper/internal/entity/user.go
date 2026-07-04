@@ -10,9 +10,6 @@ type User struct {
 	LocationPreference string    `gorm:"column:location_preference;default:ALL"`
 	CreatedAt          time.Time `gorm:"column:created_at;autoCreateTime"`
 	UpdatedAt          time.Time `gorm:"column:updated_at;autoUpdateTime"`
-
-	// Relasi Has Many: 1 User bisa punya banyak Job
-	Jobs []Job `gorm:"foreignKey:UserId;references:Id"`
 }
 
 func (User) TableName() string {

@@ -13,13 +13,11 @@ type Job struct {
 	Description string `gorm:"not null"`
 	Url         string `gorm:"uniqueIndex;not null"`
 	Location    string `gorm:"not null"`
-	IsRemote    bool   `gorm:"default:false"`
 	City        string
 	Source      string
 	Skills      pq.StringArray `gorm:"type:text[]"`
-	ScrapedAt   time.Time      `gorm:"autoCreateTime"`
-	UserId      string         `gorm:"column:user_id;type:uuid;not null"`
-	User        *User          `gorm:"foreignKey:UserId;references:Id;constraint:OnDelete:CASCADE;"`
+	Salary      string
+	ScrapedAt   time.Time `gorm:"autoCreateTime"`
 }
 
 func (Job) TableName() string {

@@ -6,6 +6,7 @@ type RawJob struct {
 	Description string
 	Url         string
 	Location    string
+	Salary      string
 	Skills      []string
 	Source      string
 }
@@ -14,10 +15,8 @@ type JobDetail struct {
 	Description string
 	Location    string
 	Skills      []string
-}
-
-type JobstreetDetail struct {
-	Description string
+	Company     string
+	Salary      string
 }
 
 type ScrapeRequest struct {
