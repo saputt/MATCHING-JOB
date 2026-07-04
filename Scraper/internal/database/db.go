@@ -12,7 +12,9 @@ func NewPostgresDB(databaseUrl string) (*gorm.DB, error) {
 		return nil, errors.New("Database url cannot be empty")
 	}
 
-	db, err := gorm.Open(postgres.Open(databaseUrl), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(databaseUrl), &gorm.Config{
+		PrepareStmt: false,
+	})
 
 	if err != nil {
 		return nil, err
