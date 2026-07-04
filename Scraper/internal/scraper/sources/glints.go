@@ -29,13 +29,13 @@ func (s *GlintsSource) GetName() string {
 }
 
 // fungsi ini adalah fungsi utama scraping terhadap glints
-func (s *GlintsSource) Scrape(ctx context.Context, keywords []string, limit int) ([]model.RawJob, error) {
+func (s *GlintsSource) Scrape(ctx context.Context, keywords []string, limit int, existingJobMap map[string]bool) ([]model.RawJob, error) {
 	// membuat channgel untuk menampung hasil dari setiap go routine
 	results := make(chan []model.RawJob, len(keywords))
 	// membaut channel unutk menampung error dari setiap go routine berdasarkan keyword yang di scrape
 	errors := make(chan error, len(keywords))
 
-	maxConcurent := 5
+	maxConcurent := 7
 	semaphore := make(chan struct{}, maxConcurent)
 
 	// melakukan looping berdasarkan jumlah keyword, laluu menjalankan go routines untuk melakukan scraping
@@ -43,7 +43,7 @@ func (s *GlintsSource) Scrape(ctx context.Context, keywords []string, limit int)
 		semaphore <- struct{}{}
 		go func(kw string) {
 			defer func() { <-semaphore }()
-			jobs, err := s.scrapeKeyword(ctx, kw, limit)
+			jobs, err := s.scrapeKeyword(ctx, kw, limit, existingJobMap)
 			if err != nil {
 				errors <- fmt.Errorf("glints %s : %w", kw, err)
 			}
@@ -79,7 +79,7 @@ func (s *GlintsSource) Scrape(ctx context.Context, keywords []string, limit int)
 	var wg sync.WaitGroup
 
 	// melakukan looping sebanyak jumlah worker yang diinginkan, lalu mengerjakan scraping detail
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 15; i++ {
 		wg.Add(1)
 		go func(workerId int) {
 			defer wg.Done()
@@ -94,7 +94,7 @@ func (s *GlintsSource) Scrape(ctx context.Context, keywords []string, limit int)
 
 				log.Printf("scraping detail jobstreet. title : %s", job.Title)
 
-				detail, err := s.scrapeDetail(job.Url)
+				detail, err := s.ScrapeDetail(job.Url)
 				if err != nil {
 					continue
 				}
@@ -102,6 +102,7 @@ func (s *GlintsSource) Scrape(ctx context.Context, keywords []string, limit int)
 				job.Description = detail.Description
 				job.Skills = detail.Skills
 				job.Location = detail.Location
+				job.Salary = detail.Salary
 
 				resultChan <- job
 
@@ -137,6 +138,7 @@ func (s *GlintsSource) scrapeKeyword(
 	ctx context.Context,
 	keyword string,
 	target int,
+	existingJobMap map[string]bool,
 ) ([]model.RawJob, error) {
 	//membuat page baru
 	page, err := s.client.NewPage()
@@ -218,7 +220,6 @@ func (s *GlintsSource) scrapeKeyword(
 			raw := model.RawJob{}
 
 			titleLocator := card.Locator("h2[class*='CompactOpportunityCardsc__JobTitle'] a")
-
 			count, _ := titleLocator.Count()
 			if count > 0 {
 				titleText, err := titleLocator.First().TextContent()
@@ -239,6 +240,12 @@ func (s *GlintsSource) scrapeKeyword(
 				if err == nil {
 					raw.Company = companyText
 				}
+			}
+
+			jobKey := raw.Title + "|" + raw.Company
+
+			if existingJobMap[jobKey] {
+				continue
 			}
 
 			if utils.IsSusCompany(raw.Company) {
@@ -265,10 +272,6 @@ func (s *GlintsSource) scrapeKeyword(
 				}
 			}
 
-			if raw.Url == "" || seenUrl[raw.Url] {
-				continue
-			}
-
 			raw.Source = "glints"
 
 			seenUrl[raw.Url] = true
@@ -286,6 +289,8 @@ func (s *GlintsSource) scrapeKeyword(
 
 			jobs = append(jobs, raw)
 			newJobCount++
+
+			log.Printf("scraping glints success. title : %s, company : %s", raw.Title, raw.Company)
 		}
 
 		if newJobCount == 0 {
@@ -303,7 +308,7 @@ func (s *GlintsSource) scrapeKeyword(
 }
 
 // fungsi ini merupakan tahapan kedua dari scraping yang berfungsi untuk melakukan scraping pada detail job yang sudah discraping pada tahap satu
-func (s *GlintsSource) scrapeDetail(
+func (s *GlintsSource) ScrapeDetail(
 	url string,
 ) (*model.JobDetail, error) {
 	//membuat page baru, setiap scraping detail memakai page baru
@@ -358,9 +363,20 @@ func (s *GlintsSource) scrapeDetail(
 
 	detail := &model.JobDetail{}
 
+	salaryLocator := page.Locator(`span[class^="TopFoldExperimentsc__BasicSalary"]`)
+
+	count, _ := salaryLocator.Count()
+
+	if count > 0 {
+		salaryText, err := salaryLocator.First().TextContent()
+		if err == nil {
+			detail.Salary = strings.TrimSpace(salaryText)
+		}
+	}
+
 	descLocator := page.Locator("div.JobDescriptionsc__DescriptionContainer div.DraftjsReadersc__ContentContainer")
 
-	count, _ := descLocator.Count()
+	count, _ = descLocator.Count()
 	if count > 0 {
 		desc, err := descLocator.First().TextContent()
 		if err == nil {
@@ -376,6 +392,15 @@ func (s *GlintsSource) scrapeDetail(
 			if err == nil {
 				detail.Description = strings.TrimSpace(desc)
 			}
+		}
+	}
+
+	companyLocator := page.Locator(`a[href*="/id/companies/"]`)
+	count, _ = companyLocator.Count()
+	if count > 0 {
+		companyText, err := companyLocator.First().TextContent()
+		if err == nil {
+			detail.Company = strings.TrimSpace(companyText)
 		}
 	}
 

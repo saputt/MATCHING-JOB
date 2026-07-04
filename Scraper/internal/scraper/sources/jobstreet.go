@@ -27,18 +27,18 @@ func (s *JobstreetSouce) GetName() string {
 	return "jobstreet"
 }
 
-func (s *JobstreetSouce) Scrape(ctx context.Context, keywords []string, limit int) ([]model.RawJob, error) {
+func (s *JobstreetSouce) Scrape(ctx context.Context, keywords []string, limit int, existingJobMap map[string]bool) ([]model.RawJob, error) {
 	result := make(chan []model.RawJob, len(keywords))
 	errors := make(chan error, len(keywords))
 
-	maxConcurent := 4
+	maxConcurent := 7
 	semaphore := make(chan struct{}, maxConcurent)
 
 	for _, keyword := range keywords {
 		semaphore <- struct{}{}
 		go func(kw string) {
 			defer func() { <-semaphore }()
-			jobs, err := s.scrapeKeyword(ctx, kw, limit)
+			jobs, err := s.scrapeKeyword(ctx, kw, limit, existingJobMap)
 			if err != nil {
 				errors <- fmt.Errorf("glints %s : %w", kw, err)
 			}
@@ -73,7 +73,7 @@ func (s *JobstreetSouce) Scrape(ctx context.Context, keywords []string, limit in
 	var wg sync.WaitGroup
 
 	// melakukan looping sebanyak jumlah worker yang diinginkan, lalu mengerjakan scraping detail
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 15; i++ {
 		wg.Add(1)
 		go func(workerId int) {
 			defer wg.Done()
@@ -88,12 +88,13 @@ func (s *JobstreetSouce) Scrape(ctx context.Context, keywords []string, limit in
 
 				log.Printf("scraping detail jobstreet. title : %s", job.Title)
 
-				detail, err := s.scrapeDetail(job.Url)
+				detail, err := s.ScrapeDetail(job.Url)
 				if err != nil {
 					continue
 				}
 
 				job.Description = detail.Description
+				job.Salary = detail.Salary
 
 				resultChan <- job
 
@@ -101,6 +102,7 @@ func (s *JobstreetSouce) Scrape(ctx context.Context, keywords []string, limit in
 			}
 
 		}(i)
+		utils.RandomDelay(1500, 3000)
 	}
 
 	go func() {
@@ -122,7 +124,7 @@ func (s *JobstreetSouce) Scrape(ctx context.Context, keywords []string, limit in
 	return completeJobs, nil
 }
 
-func (s *JobstreetSouce) scrapeKeyword(ctx context.Context, keyword string, limit int) ([]model.RawJob, error) {
+func (s *JobstreetSouce) scrapeKeyword(ctx context.Context, keyword string, limit int, existingJobMap map[string]bool) ([]model.RawJob, error) {
 	page, err := s.client.NewPage()
 	if err != nil {
 		return nil, err
@@ -130,7 +132,6 @@ func (s *JobstreetSouce) scrapeKeyword(ctx context.Context, keyword string, limi
 	defer s.client.ClosePage(page)
 
 	var jobs []model.RawJob
-	seenUrl := make(map[string]bool)
 	noNewJobCount := 0
 	maxNoNewJob := 3
 	currentPage := 1
@@ -209,6 +210,12 @@ func (s *JobstreetSouce) scrapeKeyword(ctx context.Context, keyword string, limi
 				}
 			}
 
+			key := raw.Title + "|" + raw.Company
+
+			if existingJobMap[key] {
+				continue
+			}
+
 			if utils.IsSusCompany(raw.Company) {
 				continue
 			}
@@ -233,8 +240,6 @@ func (s *JobstreetSouce) scrapeKeyword(ctx context.Context, keyword string, limi
 
 			raw.Source = "jobstreet"
 
-			seenUrl[raw.Url] = true
-
 			locLower := strings.ToLower(raw.Location)
 			isBandung := strings.Contains(locLower, "bandung")
 			isRemote := strings.Contains(locLower, "remote") ||
@@ -249,6 +254,7 @@ func (s *JobstreetSouce) scrapeKeyword(ctx context.Context, keyword string, limi
 			jobs = append(jobs, raw)
 			newJobCount++
 
+			log.Printf("scraping jobstreet success. title : %s, company : %s", raw.Title, raw.Company)
 		}
 
 		if newJobCount == 0 {
@@ -268,9 +274,9 @@ func (s *JobstreetSouce) scrapeKeyword(ctx context.Context, keyword string, limi
 }
 
 // fungsi ini merupakan tahapan kedua dari scraping yang berfungsi untuk melakukan scraping pada detail job yang sudah discraping pada tahap satu
-func (s *JobstreetSouce) scrapeDetail(
+func (s *JobstreetSouce) ScrapeDetail(
 	url string,
-) (*model.JobstreetDetail, error) {
+) (*model.JobDetail, error) {
 	//membuat page baru, setiap scraping detail memakai page baru
 	page, err := s.client.NewPage()
 
@@ -321,7 +327,16 @@ func (s *JobstreetSouce) scrapeDetail(
 
 	utils.RandomDelay(1000, 2000)
 
-	detail := &model.JobstreetDetail{}
+	detail := &model.JobDetail{}
+
+	salaryLocator := page.Locator(`span[data-automation="job-detail-salary"]`)
+	count, _ := salaryLocator.Count()
+	if count > 0 {
+		salaryText, err := salaryLocator.First().TextContent()
+		if err == nil {
+			detail.Salary = strings.TrimSpace(salaryText)
+		}
+	}
 
 	descLocator := page.Locator("div[data-automation='jobAdDetails']")
 
