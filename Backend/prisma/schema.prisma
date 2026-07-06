@@ -22,14 +22,15 @@ model User {
   email     String   @unique
   password  String
   
+  titleInterest String? @map("title_interest")
   skills    String[]  
   
   locationPreference LocationPreference @default(ALL)
-  
+  embedding Unsupported("vector(384)")?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  jobs      Job[]
   analyses  Analysis[]
 
   @@map("users")
@@ -40,18 +41,23 @@ model Job {
   title       String?
   company     String?
   description String?   
-  url         String   @unique
+  url         String 
   location    String?
-  isRemote    Boolean  @default(false) @map("is_remote")
-  city        String?
+  city        String?  
   source      String   @default("glints")
-  skills      String[]
+  skills      String[] @default([])
+  softskills String[] @default([])
+  joblevel String? 
+  salary String?
+  isIt Boolean? @map("is_it")
+  is_ok Boolean @default(false)
   scrapedAt   DateTime @default(now()) @map("scraped_at")
-  userId      String   @map("user_id")
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   analyses    Analysis[]
+  is_active Boolean @default(true)
+  embedding Unsupported("vector(384)")?
 
-  @@index([isRemote, city])
+  @@unique([title, company])
+  @@index([city])
   @@map("jobs")
 }
 
