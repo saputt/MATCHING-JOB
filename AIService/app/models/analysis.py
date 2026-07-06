@@ -10,15 +10,15 @@ class Analysis(Base):
     __tablename__ = "analyses"
 
     # ini skema tabelny
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid1)
+    id = Column(String, primary_key=True, default=uuid.uuid1)
     match_score = Column(Integer, nullable=False)
     matched_skills = Column(ARRAY(String), default=[])
     missing_skills = Column(ARRAY(String), default=[])
     ai_narrative = Column(String, nullable=False)
     learning_roadmap = Column(ARRAY(String), default=[])
     protip = Column(Text, nullable=True)
-    job_id = Column(UUID(as_uuid=True), nullable=False)
-    user_id = Column(UUID(as_uuid=True), nullable=False)
+    job_id = Column(String, nullable=False)
+    user_id = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # untuk melakukan indexing

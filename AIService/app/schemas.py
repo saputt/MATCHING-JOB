@@ -3,7 +3,8 @@ from pydantic import BaseModel
 class CreateAnalysisRequest(BaseModel):
     user_id : str
     job_title : str
-    job_skills : list
+    job_hard_skills : list
+    job_soft_skills : list
     user_skills : list
     match_score : float
 

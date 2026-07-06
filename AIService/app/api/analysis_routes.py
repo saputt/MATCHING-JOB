@@ -6,6 +6,8 @@ from app.adapters.llm_adapter import LLMAdapter
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.schemas import CreateAnalysisRequest, GetAnalysisRequest
+from uuid import UUID
+import traceback
 
 router = APIRouter(
     prefix="/api",
@@ -18,13 +20,14 @@ def analyze_job(job_id : str, req : CreateAnalysisRequest, db : Session = Depend
         repo = AnalyzeRepository(db=db)
         llm = LLMAdapter()
         service = AnalyzeService(repo=repo, llm=llm)
-        res = service.create_analyze(req=req, job_id=job_id, user_id=req.user_id)
+        res = service.analyze_job(req=req, job_id=job_id, user_id=str(req.user_id))
         return {
             "status" : "success",
             "message" : "create new analyze job success",
             "data" : res
         }
     except Exception as e:
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Gagal mengeksekusi pipeline: {str(e)}")
 
 @router.get("/analyze/{job_id}")
