@@ -2,8 +2,8 @@ import { ForbiddenException, Injectable, NotFoundException, UnauthorizedExceptio
 import { AuthRepository } from "./auth.repository";
 import { LoginDto } from "./dto/login.dto";
 import { JwtService } from "@nestjs/jwt";
-import { Bcrypt } from "./utils/bcrypt.util";
 import { RegisterDto } from "./dto/register.dto";
+import { hashing } from "src/common/helpers/hash.helper";
 
 @Injectable()
 export class AuthService {
@@ -29,7 +29,7 @@ export class AuthService {
 
         if(!isUserExist) throw new UnauthorizedException("Invalid credential")
 
-        const isPasswordCorrect = await Bcrypt.compare(dto.password, isUserExist.password)
+        const isPasswordCorrect = await hashing.compare(dto.password, isUserExist.password)
 
         if (!isPasswordCorrect) throw new ForbiddenException("Invalid credential")
 
@@ -55,7 +55,7 @@ export class AuthService {
         const userData = {
             username : dto.username,
             email : dto.email,
-            password : await Bcrypt.hash(dto.password)
+            password : await hashing.hash(dto.password)
         }
 
         return this.repo.createUser(userData)
