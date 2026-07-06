@@ -11,7 +11,7 @@ router = APIRouter(
 @router.post("/embedding")
 def generate_embedding(dto : EmbeddingRequest):
     service = EmbeddingService()
-    text_embedding = service.generate_embedding(hard_skills=dto.hard_skills,title=dto.title)
+    text_embedding = service.generate_embedding(hard_skills=dto.hard_skills,title=dto.title, isUser=True)
     return {
         "status" : "",
         "message" : "",
