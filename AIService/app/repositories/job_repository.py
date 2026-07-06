@@ -20,7 +20,8 @@ class JobRepository:
                 Job.skills == None,
                 func.cardinality(Job.skills) == 0,
                 Job.softskills == None,
-                func.cardinality(Job.softskills) == 0
+                func.cardinality(Job.softskills) == 0,
+                Job.embedding == None,
             )
         ).all()
 
@@ -35,21 +36,26 @@ class JobRepository:
         return job
 
     # method ini untuk melakukan update
-    def update_job_skills_and_embedding(self, job_id : str, is_it : bool, skills : list, softskills : list, joblevel : str, is_ok : bool, embedding_vector : list):
-        job = self.db.query(Job).filter(Job.id == job_id).first()
+    def update_job_skills_and_embedding(self, session, job_id : str, is_it : bool, skills : list, softskills : list, joblevel : str, is_ok : bool, embedding_vector : list):
+        try:
+            job = session.query(Job).filter(Job.id == job_id).first()
 
-        if job:
-            job.skills = skills
-            job.softskills = softskills
-            job.is_it = bool(is_it)
-            job.joblevel = joblevel
-            job.is_ok = bool(is_ok)
-            vector_str = f"[{','.join(map(str, embedding_vector))}]"
-            job.embedding = vector_str
-
-            self.db.commit()
-            self.db.refresh(job)
-        return job
+            if job:
+                job.softskills = softskills
+                job.is_it = is_it
+                job.skills = skills
+                job.joblevel = joblevel
+                job.is_ok = is_ok
+                job.embedding = embedding_vector
+                
+                session.commit()
+                return True
+                
+            return False
+        except Exception as e:
+            session.rollback()
+            print(f"[REPO ERROR] Gagal update Job ID {job_id}: {e}")
+            raise e
     
     def delete_non_it(self):
         try:

@@ -3,6 +3,7 @@ from sqlalchemy import Column, String, Boolean, Integer, DateTime, Text, Index
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.sql import func
 from app.core.database import Base
+from pgvector.sqlalchemy import Vector
 import uuid
 
 # mendefinisikan model pada database
@@ -28,7 +29,7 @@ class Job(Base):
     scraped_at = Column(DateTime(timezone=True), server_default=func.now())
     joblevel = Column(String, nullable=True)
     is_ok = Column(Boolean, default=False)
-    embedding = Column(String, nullable=True)
+    embedding = Column(Vector(384), nullable=True)
 
     #ini untuk indexing agar pencarian cepat
     __table_args__ = (

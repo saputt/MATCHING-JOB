@@ -1,8 +1,10 @@
 from app.repositories.job_repository import JobRepository
 from app.adapters.llm_adapter import LLMAdapter
 import time
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 from app.services.embedding_service import EmbeddingService
+from concurrent.futures import ThreadPoolExecutor
+import json
 
 # ini adalah class mengatur pipeline 
 class PipelineService:
@@ -34,8 +36,13 @@ class PipelineService:
             return
         
         print(f"[PIPELINE] Menemukan {len(jobs_queue)} lowongan yang memiliki atribut kosong. Mulai menambal...")
+        
+        MAX_WORKER = 3
 
-        for job in jobs_queue:
+        session_factory = sessionmaker(bind=db.get_bind())
+
+        def worker_task(job):
+            worker_session = session_factory()
             try:
                 print(f" -> Sedang memproses Job ID: {job.id} | Title: {job.title} | Source: {job.source}")
 
@@ -47,6 +54,9 @@ class PipelineService:
 
                 embedding_text = EmbeddingService().generate_embedding(title=job.title, hard_skills=ai_result["hard_skills"])
 
+                if isinstance(embedding_text, str):
+                    embedding_text = json.loads(embedding_text)
+                
                 self.repo.update_job_skills_and_embedding(
                     job_id=job.id,
                     softskills=ai_result.get("soft_skills", []),
@@ -54,14 +64,20 @@ class PipelineService:
                     skills=ai_result["hard_skills"],
                     joblevel=ai_result["job_level"],
                     is_ok=bool(True),
-                    embedding_vector=embedding_text
+                    embedding_vector=embedding_text,
+                    session=worker_session
                 )
+
+                time.sleep(2)
 
             except Exception as e:
                 print(f"   [GAGAL] Skip ID {job.id} karena error: {e}")
-                db.rollback()
-                continue
-
-            time.sleep(5)
+                worker_session.rollback()
+            
+            finally:
+                worker_session.close()
         
-        print("[PIPELINE] Berhasil memproses satu batch data antrean")
+        with ThreadPoolExecutor(max_workers=MAX_WORKER) as executor:
+            executor.map(worker_task, jobs_queue)
+        
+        print("[PIPELINE SELESAI] Semua worker selesai tugasnya! Cek database")
