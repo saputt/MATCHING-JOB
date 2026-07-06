@@ -3,24 +3,51 @@ from google import genai
 import json
 from openai import OpenAI
 from dotenv import load_dotenv
+import time
+import threading
 
 load_dotenv()
 
 class LLMAdapter:
     def __init__(self):
-        or_api_key = os.getenv("OR_API")
+        self.lock = threading.Lock()
+
+        json_path = os.path.join(os.path.dirname(__file__), '../../or_key.json')
+        with open(json_path, 'r') as f:
+            self.account_pool = json.load(f)
+
+        self.current_index = 0
+
+        current_account = self.account_pool[self.current_index]
+
         self.or_client = OpenAI(
             base_url="https://openrouter.ai/api/v1",
-            api_key=or_api_key
+            api_key=current_account['api-key']
         )
-        self.or_model_name = 'openrouter/owl-alpha'
+        self.or_model_name = 'cohere/north-mini-code:free'
 
         om_api_key = os.getenv("OM_API")
         self.om_client = OpenAI(
-            base_url="https://api.openmodel.ai",
+            base_url="https://api.openmodel.ai/v1",
             api_key=om_api_key
         )
         self.om_model_name = 'deepseek-v4-flash'
+
+    def _rotate_or_api(self) -> bool:
+        with self.lock:
+            if self.current_index < len(self.account_pool) - 1:
+                self.current_index += 1
+                next_account = self.account_pool[self.current_index]
+
+                self.or_client = OpenAI(
+                    base_url="https://openrouter.ai/api/v1",
+                    api_key=next_account["api-key"]
+                )
+
+                print(f"[ACCOUNT POOL] Akun limit! Otomatis rotasi ke -> {next_account['api-name']}")
+                return True
+            print("[ACCOUNT POOL] Gawat! Semua 7 akun tumbal lu udah mampet total hari ini!")
+            return False
 
     def extract_skills_from_desc(self, title : str, description : str, skills : list) -> dict:
         prompt = f"""
@@ -125,9 +152,26 @@ class LLMAdapter:
                 "soft_skills": ["NamaSoftSkill1", "NamaSoftSkill2"]
             }}
         """
-        return self._call_llm(client=self.or_client, model=self.or_model_name, prompt=prompt)
-    
-    def analyze_job_match(self, job_title : str, job_skills : list, user_skills : list, match_score : float) -> dict :
+        while True:
+            try:
+                return self._call_llm(client=self.or_client, model=self.or_model_name, prompt=prompt)
+            except Exception as e:
+                error_msg = str(e)
+
+                if "free-models-per-day" in error_msg or "429" in error_msg:
+                    current_name = self.account_pool[self.current_index]['api-name']
+                    print(f"{current_name} terdeteksi LIMIT GLOBAL!")
+
+                    if self._rotate_or_api():
+                        time.sleep(1.5)
+                        continue 
+                    else:
+                        raise Exception("7 Pasukan akun OpenRouter mati semua")
+        
+                raise e
+
+
+    def analyze_job_match(self, job_title : str, job_hard_skills : list, job_soft_skills : list, user_skills : list, match_score : float) -> dict :
         prompt = f"""
             Kamu adalah seorang IT Career Mentor sekaligus Senior Technical Recruiter yang berpengalaman merekrut Software Engineer, Backend Engineer, Frontend Engineer, Fullstack Engineer, Data Engineer, dan AI Engineer.
 
@@ -140,10 +184,13 @@ class LLMAdapter:
             Target Posisi:
             {job_title}
 
-            Job Skills:
-            {job_skills}
+            Job Hard Skills (Teknis):
+            {job_hard_skills}
 
-            User Skills:
+            Job Soft Skills (Karakter/Interpersonal):
+            {job_soft_skills}
+
+            User Skills (Keahlian Kandidat Saat Ini):
             {user_skills}
 
             Match Score (0-100):
@@ -164,43 +211,30 @@ class LLMAdapter:
             - Jangan melakukan perhitungan ulang.
 
             2. MATCHED SKILLS
-            - Identifikasi skill dari User Skills yang relevan atau memiliki makna yang sama dengan Job Skills.
+            - Identifikasi skill dari User Skills yang relevan atau memiliki makna yang sama dengan Job Hard Skills.
             - Lakukan pencocokan secara case-insensitive.
-            - Perbolehkan semantic matching sederhana.
-            Contoh:
-            - JS ≈ JavaScript
-            - TS ≈ TypeScript
-            - PostgreSQL ≈ Postgres
-            - Express ≈ Express.js
+            - Perbolehkan semantic matching sederhana. (Contoh: JS ≈ JavaScript, TS ≈ TypeScript, PostgreSQL ≈ Postgres).
 
             3. MISSING SKILLS
-            - Identifikasi skill atau teknologi yang diminta pada Job Skills tetapi belum dimiliki kandidat.
+            - Identifikasi hard skills atau teknologi yang diminta pada Job Hard Skills tetapi belum dimiliki kandidat.
             - Jangan memasukkan skill yang sudah dianggap cocok secara semantic.
 
-            4. AI NARRATIVE
-            - Buat evaluasi maksimal 3 kalimat.
-            - Jelaskan arti Match Score tersebut.
-            - Sebutkan kekuatan kandidat.
-            - Sebutkan area yang masih perlu ditingkatkan.
-            - Gunakan bahasa profesional tetapi tetap santai seperti mentor karier IT Indonesia.
-            - Hindari kalimat yang terlalu berlebihan atau menjatuhkan kandidat.
+            4. AI NARRATIVE (Fokus Hybrid)
+            - Buat evaluasi maksimal 3-4 kalimat.
+            - Jelaskan arti Match Score tersebut secara singkat.
+            - Sebutkan kekuatan teknis kandidat dan area teknis yang masih perlu ditingkatkan.
+            - WAJIB singgung "Job Soft Skills" yang diminta oleh lowongan ini. Berikan dorongan atau saran bagaimana kandidat bisa menunjukkan soft skills tersebut (misalnya: mengingatkan untuk menonjolkan skill kepemimpinan, komunikasi, atau problem solving saat interview/di CV).
+            - Gunakan bahasa profesional tetapi tetap ramah dan suportif seperti mentor karier IT Indonesia (gunakan kata "kamu", hindari bahasa baku yang kaku).
 
             5. LEARNING ROADMAP
-            - Susun roadmap belajar berdasarkan daftar missing_skills.
+            - Susun roadmap belajar teknis berdasarkan daftar missing_skills.
             - Minimal 3 langkah.
             - Urutkan dari fundamental menuju implementasi nyata.
             - Fokus pada skill yang memberikan dampak terbesar terhadap posisi tersebut.
 
             6. PROTIP
-            - Berikan satu tips praktis agar kandidat tetap memiliki peluang besar dipanggil recruiter meskipun masih memiliki skill gap.
-            - Contohnya:
-                - project portfolio
-                - GitHub
-                - deployment
-                - technical blog
-                - open source
-                - sertifikasi
-                - optimasi CV
+            - Berikan satu tips praktis agar kandidat tetap memiliki peluang besar dipanggil recruiter.
+            - Tips ini bisa berupa trik teknis (deploy project, open source) ATAU trik non-teknis yang berhubungan dengan Job Soft Skills yang diminta.
 
             =====================
             ATURAN OUTPUT
@@ -223,16 +257,32 @@ class LLMAdapter:
                     "Docker",
                     "TypeScript"
                 ],
-                "ai_narrative": "Match score sebesar {match_score} menunjukkan kandidat memiliki tingkat kecocokan yang cukup baik terhadap posisi ini. Skill backend yang dimiliki sudah relevan, namun masih ada beberapa teknologi penting yang perlu dipelajari agar semakin kompetitif.",
+                "ai_narrative": "Match score sebesar {match_score} menunjukkan kamu punya pondasi yang bagus untuk posisi ini. Secara teknis, skill backend kamu sudah relevan, meski masih perlu mengejar ketertinggalan di Docker dan TypeScript. Lowongan ini juga sangat menekankan pada kolaborasi dan problem solving, jadi pastikan kamu menceritakan pengalaman kerja samamu dalam tim saat sesi interview nanti!",
                 "learning_roadmap": [
                     "Pelajari dasar TypeScript lalu migrasikan salah satu project JavaScript ke TypeScript.",
                     "Pelajari Docker dan containerisasi aplikasi Node.js.",
                     "Deploy project yang sudah menggunakan Docker ke platform cloud seperti Render atau Railway."
                 ],
-                "protip": "Buat satu project end-to-end yang menggunakan seluruh tech stack utama pada lowongan dan tampilkan di GitHub beserta dokumentasi yang rapi."
+                "protip": "Buat satu project end-to-end yang menggunakan seluruh tech stack utama, lalu tulis README di GitHub yang menjelaskan alur pemikiranmu (ini bagus untuk memamerkan problem solving skill kamu)."
             }}
             """
-        return self._call_llm(client=self.om_client, model=self.om_model_name, prompt=prompt)
+        while True:
+            try:
+                return self._call_llm(client=self.or_client, model=self.or_model_name, prompt=prompt)
+            except Exception as e:
+                error_msg = str(e)
+
+                if "free-models-per-day" in error_msg or "429" in error_msg:
+                    current_name = self.account_pool[self.current_index]['api-name']
+                    print(f"{current_name} terdeteksi LIMIT GLOBAL!")
+
+                    if self._rotate_or_api():
+                        time.sleep(1.5)
+                        continue 
+                    else:
+                        raise Exception("7 Pasukan akun OpenRouter mati semua")
+        
+                raise e
 
     def _call_llm(self, client, model, prompt) -> dict:
         try:
@@ -243,8 +293,14 @@ class LLMAdapter:
                     {"role": "user", "content": prompt}
                 ]
             )
-            raw = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
+            raw_content = response.choices[0].message.content
+
+            if raw_content is None:
+                raise Exception("Respon dari server OpenRouter kosong (NoneType)")
+
+            raw = raw_content.replace("```json", "").replace("```", "").strip()
+
             return json.loads(raw)
         except Exception as e:
             print(f"[LLM ERROR] Gagal di model {model}: {e}")
-            return {}
+            raise e
