@@ -1,3 +1,5 @@
 .env
 .venv
 __pycache__
+/docs
+or_key.json
