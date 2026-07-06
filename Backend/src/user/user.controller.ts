@@ -1,18 +1,20 @@
-import { Body, Controller, Param, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Param, Patch, Post, UseGuards } from "@nestjs/common";
 import { UserService } from "./user.service";
-import { UserExist } from "./pipes/user-exist.pipe";
 import type { UserProfileResponse } from "./interfaces/user-response.interface";
-import { UpdateSkillsDto } from "./dto/update-skills.dto";
+import { GetUser } from "src/common/decorators/get-user.decorator";
+import { UpdatePreferencesDto } from "./dto/update-preferences.dto";
+import { JwtAuthGuard } from "src/common/guards/jwt-auth.guard";
 
-@Controller("users")
+@Controller("user")
+@UseGuards(JwtAuthGuard)
 export class UserController {
     constructor(private readonly service : UserService) {}
 
-    @Patch('skills/:userId')
-    async UpdateSkills(@Param("userId", UserExist) userData : UserProfileResponse, @Body() req : UpdateSkillsDto) {
-        const res = await this.service.UpdateSkills(userData, req)
+    @Patch('preferences')
+    async UpdateSkills(@GetUser('id') userId : string, @Body() dto : UpdatePreferencesDto) {
+        const res = await this.service.UpdatePreferences(userId, dto)
         return {
-            message : "Update skills success",
+            message : "Update preferences success",
             data : res
         }
     }
